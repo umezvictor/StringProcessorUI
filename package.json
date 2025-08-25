@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.1.1",
     "@microsoft/signalr": "^9.0.6",
     "@reduxjs/toolkit": "^2.8.2",
+    "@tailwindcss/vite": "^4.1.12",
     "axios": "^1.10.0",
     "bootstrap": "^5.3.7",
     "bootstrap-icons": "^1.13.1",
