@@ -1,5 +1,10 @@
 # React + TypeScript + Vite
 
+To run this app, first clone it and run npm install. Afterwards use npm run dev to start the application
+
+The api runs on https://localhost:5001. This has been setup in an env file
+
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
