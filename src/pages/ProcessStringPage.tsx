@@ -14,8 +14,10 @@ const schema = z.object({
   input: z
     .string()
     .nonempty()
+    .min(2, { message: "Input must be at least 2 characters long" })
+    .max(50, { message: "Input can't be more than 50 characters long" })
     .refine((val) => val.trim() !== "", {
-      message: "Input string cannot be empty or white space",
+      message: "Input string can't be empty or white space",
     }),
 });
 
