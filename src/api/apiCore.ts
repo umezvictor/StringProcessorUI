@@ -94,8 +94,8 @@ class APICore {
   setLoggedInUser = (payload: any) => {
     if (payload) {
       Cookies.set(ACCESS_TOKEN_KEY, JSON.stringify(payload), {
-        sameSite: "Lax", //I'll use httponly cookies for production
-        expires: 3650,
+        sameSite: "Lax", // I'll use strict in production
+        expires: 7,
       });
     } else {
       Cookies.remove(ACCESS_TOKEN_KEY);

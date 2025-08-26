@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { HubConnection, HubConnectionBuilder } from "@microsoft/signalr";
 import { APICore } from "../api/apiCore";
-import { JobStatus } from "../enums/jobStatus";
+import { SignalRMethods } from "../enums/SignalRMethods";
 
 const schema = z.object({
   input: z
@@ -27,11 +27,16 @@ export default function ProcessStringPage() {
   const [receivedString, setReceivedString] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  const [progressBar, setProgressBar] = useState<number>(0);
+
   const [backgroundJobId, setBackgroundJobId] = useState<string | null>(null);
   const connectionRef = useRef<HubConnection | null>(null);
 
+  const messageLengthRef = useRef<number>(0);
+
   var api = new APICore();
 
+  let totalCharactersReceived = 0;
   //connect to SignalR
   useEffect(() => {
     const initConnection = async () => {
@@ -42,23 +47,34 @@ export default function ProcessStringPage() {
         .withAutomaticReconnect([0, 2000, 5000, 10000, 15000])
         .build();
 
-      connection.on("ReceiveNotification", (message: string) => {
-        if (
-          !message.startsWith(JobStatus.PROCESSING_STARTED) &&
-          !message.startsWith(JobStatus.PROCESSING_COMPLETED)
-        ) {
-          setReceivedString((prev) => prev + message);
+      connection.on(SignalRMethods.MessageLength, (totalLength: number) => {
+        if (totalLength > 0) {
+          messageLengthRef.current = totalLength;
         }
-        if (message.startsWith(JobStatus.PROCESSING_CANCELLED)) {
-          setReceivedString("");
-          setIsProcessing(false);
-          toast.error("Processing cancelled");
-          return;
-        }
-        if (message.startsWith(JobStatus.PROCESSING_COMPLETED)) {
-          setIsProcessing(false);
-          return;
-        }
+      });
+
+      connection.on(SignalRMethods.ReceiveNotification, (message: string) => {
+        setReceivedString((prev) => prev + message);
+        totalCharactersReceived++;
+        setProgressBar(
+          Math.floor((totalCharactersReceived * 100) / messageLengthRef.current)
+        );
+      });
+
+      connection.on(SignalRMethods.ProcessingCompleted, () => {
+        totalCharactersReceived = 0;
+        setProgressBar(100);
+        setIsProcessing(false);
+        reset();
+      });
+
+      connection.on(SignalRMethods.ProcessingCancelled, () => {
+        totalCharactersReceived = 0;
+        setProgressBar(0);
+        setReceivedString("");
+        setIsProcessing(false);
+        reset();
+        toast.error("Processing cancelled");
       });
 
       try {
@@ -113,6 +129,7 @@ export default function ProcessStringPage() {
   const {
     register,
     handleSubmit,
+    reset,
     setError,
     formState: { errors },
   } = useForm<ProcessStringRequest>({
@@ -143,6 +160,7 @@ export default function ProcessStringPage() {
   return (
     <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
       <ToastContainer />
+
       <div className="card shadow p-4" style={{ width: "400px" }}>
         <div className="card-body">
           <h4 className="card-title text-center mb-4">
@@ -191,6 +209,21 @@ export default function ProcessStringPage() {
           >
             Cancel
           </button>
+          <div
+            className="progress mt-3"
+            role="progressbar"
+            aria-label="Example with label"
+            aria-valuenow={progressBar}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="progress-bar progress-bar-striped progress-bar-animated bg-success"
+              style={{ width: `${progressBar}%` }}
+            >
+              {progressBar}%
+            </div>
+          </div>
         </div>
       </div>
     </div>
