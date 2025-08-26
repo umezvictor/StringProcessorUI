@@ -99,7 +99,6 @@ export default function ProcessStringPage() {
     jobId: string;
   };
 
-  //cancel the request
   const handleCancellation = async () => {
     if (backgroundJobId) {
       try {
