@@ -3,6 +3,7 @@ import Cookies from "js-cookie";
 import { environmentVariable } from "../config";
 
 axios.defaults.headers.post["Content-Type"] = "application/json";
+
 axios.defaults.baseURL = environmentVariable.VITE_API_URL;
 
 //intercept api calls and set authorization headers before they hit the api

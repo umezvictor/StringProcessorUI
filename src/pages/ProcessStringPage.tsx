@@ -2,6 +2,7 @@ import { environmentVariable } from "../config";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import z from "zod";
+import { v4 as uuidv4 } from "uuid";
 
 import { ToastContainer, toast } from "react-toastify";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +10,7 @@ import axios from "axios";
 import { HubConnection, HubConnectionBuilder } from "@microsoft/signalr";
 import { APICore } from "../api/apiCore";
 import { SignalRMethods } from "../enums/SignalRMethods";
+import type { CancelRequest } from "../types";
 
 const schema = z.object({
   input: z
@@ -33,11 +35,19 @@ export default function ProcessStringPage() {
   const connectionRef = useRef<HubConnection | null>(null);
 
   const messageLengthRef = useRef<number>(0);
+  const idempotencyKeyRef = useRef<string>("");
 
   var api = new APICore();
 
+  useEffect(() => {
+    if (!isProcessing) {
+      idempotencyKeyRef.current = uuidv4();
+    }
+  }, [isProcessing]);
+
   let totalCharactersReceived = 0;
-  //connect to SignalR
+
+  //SignalR connection and event handlers
   useEffect(() => {
     const initConnection = async () => {
       const connection = new HubConnectionBuilder()
@@ -47,12 +57,14 @@ export default function ProcessStringPage() {
         .withAutomaticReconnect([0, 2000, 5000, 10000, 15000])
         .build();
 
+      //get the total length of characters to be received
       connection.on(SignalRMethods.MessageLength, (totalLength: number) => {
         if (totalLength > 0) {
           messageLengthRef.current = totalLength;
         }
       });
 
+      //append the received characters to the text area
       connection.on(SignalRMethods.ReceiveNotification, (message: string) => {
         setReceivedString((prev) => prev + message);
         totalCharactersReceived++;
@@ -61,6 +73,7 @@ export default function ProcessStringPage() {
         );
       });
 
+      //processing has been completed
       connection.on(SignalRMethods.ProcessingCompleted, () => {
         totalCharactersReceived = 0;
         setProgressBar(100);
@@ -68,6 +81,7 @@ export default function ProcessStringPage() {
         reset();
       });
 
+      //processing has been cancelled
       connection.on(SignalRMethods.ProcessingCancelled, () => {
         totalCharactersReceived = 0;
         setProgressBar(0);
@@ -79,10 +93,12 @@ export default function ProcessStringPage() {
 
       try {
         await connection.start();
-        console.log("SignalR connection successful.");
+        console.log("Connection successful");
         connectionRef.current = connection;
       } catch (error) {
-        console.error("SignalR connection failed:", error);
+        console.error("Connection failed: ", error);
+      } finally {
+        //console.clear();
       }
     };
 
@@ -95,25 +111,16 @@ export default function ProcessStringPage() {
     };
   }, []);
 
-  type CancelRequest = {
-    jobId: string;
-  };
-
   const handleCancellation = async () => {
-    if (backgroundJobId) {
+    if (backgroundJobId && isProcessing) {
       try {
         const data: CancelRequest = {
           jobId: backgroundJobId.toString(),
         };
 
-        await axios.post(
+        await api.postAsync(
           `${environmentVariable.VITE_API_URL}/api/processor/cancel-job`,
-          data,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
+          data
         );
       } catch (error) {
         setError("root", {
@@ -136,19 +143,32 @@ export default function ProcessStringPage() {
   });
 
   const processString: SubmitHandler<ProcessStringRequest> = async (data) => {
-    setReceivedString("");
     setIsProcessing(true);
+    setReceivedString("");
 
     try {
-      const response = await api.postAsync(
+      const response = await axios.post(
         `${environmentVariable.VITE_API_URL}/api/processor/process-string`,
-        data
+        data,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": idempotencyKeyRef.current,
+          },
+        }
       );
+
+      if (response.status === 400) {
+        toast.error(
+          "Invalid request. Please check your input and ensure you're not sending more than one request at a time"
+        );
+      }
 
       if (response.data.isSuccess) {
         setBackgroundJobId(response.data.value);
       }
     } catch (error) {
+      setIsProcessing(false);
       setError("root", {
         type: "manual",
         message: String("An error occured while processing the string"),

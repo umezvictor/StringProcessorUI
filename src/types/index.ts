@@ -10,3 +10,7 @@ export interface UserState {
     error: string | null;
   };
 }
+
+export type CancelRequest = {
+  jobId: string;
+};
