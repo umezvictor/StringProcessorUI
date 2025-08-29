@@ -28,9 +28,7 @@ type ProcessStringRequest = z.infer<typeof schema>;
 export default function ProcessStringPage() {
   const [receivedString, setReceivedString] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
   const [progressBar, setProgressBar] = useState<number>(0);
-
   const [backgroundJobId, setBackgroundJobId] = useState<string | null>(null);
   const connectionRef = useRef<HubConnection | null>(null);
 
